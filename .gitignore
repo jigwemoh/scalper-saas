@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# AI model artifacts
+apps/ai-engine/models/artifacts/*.pt
+apps/ai-engine/models/artifacts/*.json
+
+# Node
+node_modules/
+.next/
+.vercel/
+.env.local
+.env.*.local
+next-env.d.ts
+
+# Docker
+docker/data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+*.key
