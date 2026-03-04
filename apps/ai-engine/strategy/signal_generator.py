@@ -114,7 +114,8 @@ def evaluate_setup(
     ema20 = latest.get("ema20", 0)
     ema50 = latest.get("ema50", 0)
     close = float(last["close"])
-    vwap = latest.get("vwap", close)
+    # Use above_vwap flag from feature matrix (vwap itself is not in FEATURE_COLUMNS)
+    above_vwap = bool(latest.get("above_vwap", 0))
 
     ema_bull = ema20 > ema50
     ema_bear = ema20 < ema50
@@ -136,10 +137,10 @@ def evaluate_setup(
         return None
 
     # Determine candidate direction
-    if ema_bull and close > vwap and rsi_bull_zone:
+    if ema_bull and above_vwap and rsi_bull_zone:
         candidate = "BUY"
         liquidity_sweep = detect_bullish_sweep(df_m1)
-    elif ema_bear and close < vwap and rsi_bear_zone:
+    elif ema_bear and not above_vwap and rsi_bear_zone:
         candidate = "SELL"
         liquidity_sweep = detect_bearish_sweep(df_m1)
     else:
