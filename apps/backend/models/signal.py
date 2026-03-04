@@ -23,6 +23,9 @@ class AISignal(Base):
     entry_price: Mapped[float | None] = mapped_column(Numeric(12, 6))
     stop_loss: Mapped[float | None] = mapped_column(Numeric(12, 6))
     take_profit: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    sl_pips: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    liquidity_sweep: Mapped[bool] = mapped_column(default=False)
+    model_version: Mapped[str | None] = mapped_column(String(50))  # e.g. "xgb-v1.2/lstm-v1.2"
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

@@ -12,6 +12,7 @@ import redis.asyncio as aioredis
 from config import get_settings
 from database import AsyncSessionLocal
 from models.mt5_account import MT5Account
+from models.trade import Trade
 from services.mt5_bridge_client import execute_order
 from services.risk_service import evaluate_kill_switch, calculate_lot_size, apply_dynamic_scaling, log_risk_event
 from services.trade_service import open_trade
@@ -23,6 +24,35 @@ logger = logging.getLogger("signal_dispatcher")
 settings = get_settings()
 
 SIGNAL_QUEUE_KEY = "signals:pending"
+
+
+async def _get_streak(db, account_id: uuid.UUID) -> tuple[int, int]:
+    """Returns (consecutive_wins, consecutive_losses) from the last 10 closed trades."""
+    result = await db.execute(
+        select(Trade)
+        .where(Trade.account_id == account_id, Trade.status == "closed")
+        .order_by(Trade.closed_at.desc())
+        .limit(10)
+    )
+    trades = result.scalars().all()
+
+    consecutive_wins = 0
+    consecutive_losses = 0
+
+    for trade in trades:
+        pnl = float(trade.profit_loss or 0)
+        if pnl > 0:
+            if consecutive_losses > 0:
+                break
+            consecutive_wins += 1
+        elif pnl < 0:
+            if consecutive_wins > 0:
+                break
+            consecutive_losses += 1
+        else:
+            break
+
+    return consecutive_wins, consecutive_losses
 
 
 async def dispatch_one(redis: aioredis.Redis, raw: str) -> None:
@@ -40,6 +70,10 @@ async def dispatch_one(redis: aioredis.Redis, raw: str) -> None:
     stop_loss = signal_data.get("stop_loss")
     take_profit = signal_data.get("take_profit")
 
+    # Validate signal_id is present — required for trade linkage
+    if not signal_id_str:
+        logger.warning("Signal missing signal_id — trade will have no signal linkage")
+
     async with AsyncSessionLocal() as db:
         try:
             # Get all active accounts to dispatch to
@@ -49,54 +83,68 @@ async def dispatch_one(redis: aioredis.Redis, raw: str) -> None:
             accounts = result.scalars().all()
 
             for account in accounts:
-                # Check subscription
-                sub = await get_active_subscription(db, account.user_id)
-                if not sub and account.user_id is not None:
-                    continue  # Skip accounts without active subscription
+                try:
+                    # Check subscription
+                    sub = await get_active_subscription(db, account.user_id)
+                    if not sub and account.user_id is not None:
+                        continue  # Skip accounts without active subscription
 
-                # Check kill switch
-                ks = await evaluate_kill_switch(db, account.id)
-                if ks.blocked:
-                    logger.info(f"Skip account {account.id}: {ks.reason}")
-                    continue
+                    # Check kill switch
+                    ks = await evaluate_kill_switch(db, account.id)
+                    if ks.blocked:
+                        logger.info(f"Skip account {account.id}: {ks.reason}")
+                        continue
 
-                # Calculate lot size
-                balance = float(account.account_balance or 1000)
-                plan_name = sub.plan_name if sub else "starter"
-                base_risk_pct = get_risk_pct_for_plan(plan_name)
-                lot = calculate_lot_size(balance, sl_pips, symbol, base_risk_pct)
+                    # Calculate lot size with dynamic scaling based on win/loss streak
+                    balance = float(account.account_balance or 1000)
+                    plan_name = sub.plan_name if sub else "starter"
+                    base_risk_pct = get_risk_pct_for_plan(plan_name)
 
-                # Execute on bridge
-                result_exec = await execute_order(
-                    symbol=symbol,
-                    direction=direction,
-                    volume=lot,
-                    entry_price=entry_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                )
+                    wins, losses = await _get_streak(db, account.id)
+                    scaled_risk_pct = apply_dynamic_scaling(base_risk_pct, wins, losses)
+                    lot = calculate_lot_size(balance, sl_pips, symbol, scaled_risk_pct)
 
-                if result_exec.get("status") == "executed":
-                    ticket = result_exec.get("ticket")
-                    actual_price = result_exec.get("price", entry_price)
+                    if wins > 1 or losses > 1:
+                        logger.info(
+                            f"Account {account.id}: streak wins={wins} losses={losses} "
+                            f"risk {base_risk_pct:.3f} → {scaled_risk_pct:.3f}"
+                        )
 
-                    await open_trade(
-                        db=db,
-                        account_id=account.id,
-                        signal_id=uuid.UUID(signal_id_str) if signal_id_str else None,
+                    # Execute on bridge
+                    result_exec = await execute_order(
                         symbol=symbol,
                         direction=direction,
-                        lot_size=lot,
-                        entry_price=actual_price,
+                        volume=lot,
+                        entry_price=entry_price,
                         stop_loss=stop_loss,
                         take_profit=take_profit,
-                        mt5_ticket=ticket,
                     )
-                    logger.info(f"Executed {direction} {lot} {symbol} ticket={ticket} on account {account.id}")
-                else:
-                    err = result_exec.get("error", "Unknown error")
-                    logger.error(f"Order failed for account {account.id}: {err}")
-                    await log_risk_event(db, account.id, "order_failed", f"Order failed: {err}")
+
+                    if result_exec.get("status") == "executed":
+                        ticket = result_exec.get("ticket")
+                        actual_price = result_exec.get("price", entry_price)
+
+                        await open_trade(
+                            db=db,
+                            account_id=account.id,
+                            signal_id=uuid.UUID(signal_id_str) if signal_id_str else None,
+                            symbol=symbol,
+                            direction=direction,
+                            lot_size=lot,
+                            entry_price=actual_price,
+                            stop_loss=stop_loss,
+                            take_profit=take_profit,
+                            mt5_ticket=ticket,
+                        )
+                        logger.info(f"Executed {direction} {lot} {symbol} ticket={ticket} on account {account.id}")
+                    else:
+                        err = result_exec.get("error", "Unknown error")
+                        logger.error(f"Order failed for account {account.id}: {err}")
+                        await log_risk_event(db, account.id, "order_failed", f"Order failed: {err}")
+
+                except Exception as e:
+                    logger.exception(f"Error dispatching to account {account.id}: {e}")
+                    # Continue to next account — don't abort all accounts on one failure
 
             await db.commit()
 

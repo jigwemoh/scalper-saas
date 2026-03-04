@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 
 from features.pipeline import build_feature_matrix, get_latest_feature_row, FEATURE_COLUMNS
+from features.session import get_session
 from models.ensemble import EnsemblePredictor
 from strategy.liquidity_sweep import detect_bullish_sweep, detect_bearish_sweep
 from strategy.regime_detector import classify_regime, is_tradeable_regime
@@ -45,15 +46,6 @@ class TradingSignal:
     expected_move_pips: float
     liquidity_sweep: bool
 
-
-def _get_session(hour: int) -> str:
-    if 7 <= hour < 16:
-        return "london"
-    if 13 <= hour < 22:
-        return "new_york"
-    if 0 <= hour < 8:
-        return "asia"
-    return "off_hours"
 
 
 def _calc_sl_tp(
@@ -99,13 +91,14 @@ def evaluate_setup(
     hour = last.name.hour if hasattr(last.name, "hour") else 12
 
     # === RULE FILTER 1: Session ===
-    session = _get_session(hour)
+    session = get_session(hour)
     if session == "off_hours":
         return None
 
     # === RULE FILTER 2: Spread ===
-    spread = float(last.get("spread", 0))
-    spread_pips = spread  # Already in pips if spread column is pips
+    # MT5 returns spread in points (1 point = 0.1 pip for 5-digit brokers) → convert to pips
+    spread_points = float(last.get("spread", 0))
+    spread_pips = spread_points / 10.0
     if spread_pips > MAX_SPREAD_PIPS:
         logger.debug(f"{symbol}: spread {spread_pips} > {MAX_SPREAD_PIPS}")
         return None

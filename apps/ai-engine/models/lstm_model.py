@@ -18,7 +18,7 @@ ARTIFACTS_DIR.mkdir(exist_ok=True)
 MODEL_PATH = ARTIFACTS_DIR / "lstm_latest.pt"
 
 SEQ_LEN = 60
-N_FEATURES = 55  # matches len(FEATURE_COLUMNS) in pipeline.py + 3 M5 features
+N_FEATURES = 55  # 52 base + 3 M5 context — must match len(FEATURE_COLUMNS) in pipeline.py
 
 
 class ScalpingLSTM(nn.Module):
@@ -74,10 +74,9 @@ class LSTMPredictor:
             return 0.5
 
         seq = feature_matrix[-SEQ_LEN:]  # Last 60 rows
-        # Pad features if needed
-        if seq.shape[1] < N_FEATURES:
-            pad = np.zeros((seq.shape[0], N_FEATURES - seq.shape[1]))
-            seq = np.hstack([seq, pad])
+        if seq.shape[1] != N_FEATURES:
+            logger.warning(f"Feature dimension mismatch: expected {N_FEATURES}, got {seq.shape[1]}. Returning neutral.")
+            return 0.5
 
         x = torch.FloatTensor(seq).unsqueeze(0)  # [1, 60, F]
         with torch.no_grad():

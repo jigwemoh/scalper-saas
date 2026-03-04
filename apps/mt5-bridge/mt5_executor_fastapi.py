@@ -1,6 +1,7 @@
 from typing import Optional, Literal, Any, Dict, cast
 from datetime import datetime, timedelta, timezone
 import logging
+import os
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +13,9 @@ except ImportError as e:  # pragma: no cover
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(message)s")
 log = logging.getLogger("mt5-exec")
+
+# Magic number identifies orders placed by this system; configurable per deployment
+MT5_MAGIC_NUMBER = int(os.getenv("MT5_MAGIC_NUMBER", "20250101"))
 
 app = FastAPI(title="MT5 Executor", version="0.2.0")
 
@@ -169,7 +173,7 @@ async def execute_order(req: ExecRequest) -> Dict[str, Any]:
         "type": order_type,
         "price": float(price),
         "deviation": 20,
-        "magic": 777,
+        "magic": MT5_MAGIC_NUMBER,
         "comment": req.comment,
         "type_time": mt5.ORDER_TIME_GTC,  # type: ignore
         "type_filling": filling,
@@ -187,11 +191,16 @@ async def execute_order(req: ExecRequest) -> Dict[str, Any]:
         return {"status": "error", "error": f"order_send returned None: {err}"}
 
     if result.retcode != mt5.TRADE_RETCODE_DONE:  # type: ignore
+        retcode = int(result.retcode)  # type: ignore
+        comment = str(getattr(cast(Any, result), "comment", ""))
+        log.error("Order rejected: retcode=%d comment=%s symbol=%s direction=%s", retcode, comment, req.symbol, req.direction)
         return {
             "status": "error",
-            "retcode": result.retcode,  # type: ignore
-            "comment": str(getattr(cast(Any, result), "comment", "")),
-            "request": request,
+            "retcode": retcode,
+            "comment": comment,
+            "symbol": req.symbol,
+            "direction": req.direction,
+            "volume": req.volume,
         }
 
     return {

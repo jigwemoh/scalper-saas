@@ -10,6 +10,7 @@ from config import get_settings
 from api.v1.router import api_router
 from workers.bridge_poller import start_bridge_poller
 from workers.performance_tracker import start_performance_tracker
+from workers.signal_dispatcher import start_signal_dispatcher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +30,6 @@ class WebSocketManager:
         logger.info(f"WS connected. Total: {len(self._connections)}")
 
     def disconnect(self, ws: WebSocket) -> None:
-        self._connections.discard(ws) if hasattr(self._connections, "discard") else None
         if ws in self._connections:
             self._connections.remove(ws)
 
@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting background workers...")
     asyncio.create_task(start_bridge_poller(ws_manager))
     asyncio.create_task(start_performance_tracker())
+    asyncio.create_task(start_signal_dispatcher())
     yield
     logger.info("Shutting down...")
 

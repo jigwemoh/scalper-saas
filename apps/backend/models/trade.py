@@ -27,6 +27,7 @@ class Trade(Base):
     exit_price: Mapped[float | None] = mapped_column(Numeric(12, 6))
     profit_loss: Mapped[float | None] = mapped_column(Numeric(12, 2))
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | closed | cancelled
+    close_reason: Mapped[str | None] = mapped_column(String(30))  # take_profit | stop_loss | manual | kill_switch | expired
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

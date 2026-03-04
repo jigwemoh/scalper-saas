@@ -16,7 +16,8 @@ from models.ensemble import EnsemblePredictor
 
 logger = logging.getLogger("retrain_job")
 
-RETRAIN_SYMBOLS = ["EURUSD", "GBPUSD"]
+# Must match SYMBOLS in strategy/signal_generator.py
+RETRAIN_SYMBOLS = ["EURUSD", "GBPUSD", "XAUUSD"]
 LABEL_LOOKAHEAD = 5  # Predict if price up 5 candles later
 
 
@@ -37,7 +38,7 @@ def prepare_sequences(features: pd.DataFrame, labels: np.ndarray) -> tuple[np.nd
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
 
-async def retrain_models() -> None:
+async def retrain_models(predictor: EnsemblePredictor | None = None) -> None:
     logger.info("Starting weekly model retraining...")
     all_X_xgb, all_y_xgb = [], []
     all_X_lstm, all_y_lstm = [], []
@@ -45,7 +46,8 @@ async def retrain_models() -> None:
     for symbol in RETRAIN_SYMBOLS:
         try:
             logger.info(f"Fetching training data for {symbol}...")
-            df = await fetch_candles(symbol, "M5", count=1000)  # ~3 days of M5 data
+            # Use M1 data for training to match inference timeframe
+            df = await fetch_candles(symbol, "M1", count=2000)
 
             if df.empty or len(df) < 100:
                 logger.warning(f"Insufficient data for {symbol}")
@@ -71,8 +73,9 @@ async def retrain_models() -> None:
 
             # LSTM: sequences
             lstm_X, lstm_y = prepare_sequences(features, labels)
-            all_X_lstm.append(lstm_X)
-            all_y_lstm.append(lstm_y)
+            if len(lstm_X) > 0:
+                all_X_lstm.append(lstm_X)
+                all_y_lstm.append(lstm_y)
 
         except Exception as e:
             logger.error(f"Error processing {symbol}: {e}")
@@ -93,19 +96,24 @@ async def retrain_models() -> None:
         X_lstm = np.vstack(all_X_lstm)
         y_lstm = np.concatenate(all_y_lstm)
         lstm_model = train_lstm(X_lstm, y_lstm, epochs=20)
-        predictor = LSTMPredictor()
-        predictor.save(lstm_model)
+        lstm_predictor = LSTMPredictor()
+        lstm_predictor.save(lstm_model)
         logger.info(f"LSTM retrained on {len(X_lstm)} sequences")
 
-    logger.info("Retraining complete — reloading ensemble predictor")
+    # Reload the live ensemble predictor so new models take effect immediately
+    if predictor is not None:
+        predictor.reload()
+        logger.info("Live ensemble predictor reloaded with new models")
+    else:
+        logger.warning("No predictor reference passed — live predictor not reloaded; restart to use new models")
 
 
-async def start_retrain_loop() -> None:
+async def start_retrain_loop(predictor: EnsemblePredictor | None = None) -> None:
     """Run retraining once weekly (every 7 days)."""
     WEEK_SECONDS = 7 * 24 * 3600
     logger.info("Retraining loop started — first run in 24h")
     await asyncio.sleep(24 * 3600)  # Wait 24h before first retrain
 
     while True:
-        await retrain_models()
+        await retrain_models(predictor)
         await asyncio.sleep(WEEK_SECONDS)

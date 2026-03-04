@@ -34,12 +34,14 @@ async def _snapshot_all_accounts() -> None:
                     balance = float(account_info.get("balance", 0))
                     equity = float(account_info.get("equity", 0))
 
+                    # Determine starting balance: use today's first snapshot if already recorded,
+                    # otherwise current balance is the day's opening value
+                    existing_perf = await get_today_performance(db, account.id)
+                    starting = float(existing_perf.starting_balance) if existing_perf else balance
+
                     # Update account balance/equity
                     account.account_balance = balance  # type: ignore[assignment]
                     account.account_equity = equity  # type: ignore[assignment]
-
-                    # Use starting balance from DB or current if not set
-                    starting = float(account.account_balance or balance)
 
                     perf = await upsert_daily_performance(
                         db=db,
