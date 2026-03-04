@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 BRIDGE_SECRET = os.getenv("MT5_BRIDGE_SECRET", "dev-bridge-secret")
 
 # Paths that don't require auth (health checks)
-PUBLIC_PATHS = {"/health", "/", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PATHS = {"/health", "/", "/docs", "/openapi.json", "/redoc", "/api/health/system"}
 
 
 class BridgeAuthMiddleware(BaseHTTPMiddleware):
