@@ -8,8 +8,15 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import torch
-import torch.nn as nn
+
+try:
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None  # type: ignore
+    nn = None  # type: ignore
 
 logger = logging.getLogger("lstm_model")
 
@@ -21,38 +28,48 @@ SEQ_LEN = 60
 N_FEATURES = 55  # 52 base + 3 M5 context — must match len(FEATURE_COLUMNS) in pipeline.py
 
 
-class ScalpingLSTM(nn.Module):
-    def __init__(self, input_size: int = N_FEATURES, hidden_size: int = 128, num_layers: int = 2):
-        super().__init__()
-        self.lstm1 = nn.LSTM(input_size, hidden_size, num_layers=1, batch_first=True, dropout=0.0)
-        self.lstm2 = nn.LSTM(hidden_size, 64, num_layers=1, batch_first=True)
-        self.dropout = nn.Dropout(0.3)
-        self.fc1 = nn.Linear(64, 32)
-        self.fc2 = nn.Linear(32, 1)
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
+if TORCH_AVAILABLE:
+    class ScalpingLSTM(nn.Module):
+        def __init__(self, input_size: int = N_FEATURES, hidden_size: int = 128, num_layers: int = 2):
+            super().__init__()
+            self.lstm1 = nn.LSTM(input_size, hidden_size, num_layers=1, batch_first=True, dropout=0.0)
+            self.lstm2 = nn.LSTM(hidden_size, 64, num_layers=1, batch_first=True)
+            self.dropout = nn.Dropout(0.3)
+            self.fc1 = nn.Linear(64, 32)
+            self.fc2 = nn.Linear(32, 1)
+            self.relu = nn.ReLU()
+            self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out, _ = self.lstm1(x)
-        out = self.dropout(out)
-        out, _ = self.lstm2(out)
-        last = out[:, -1, :]          # Take last timestep
-        out = self.relu(self.fc1(last))
-        out = self.dropout(out)
-        out = self.sigmoid(self.fc2(out))
-        return out                    # Shape: [B, 1]
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            out, _ = self.lstm1(x)
+            out = self.dropout(out)
+            out, _ = self.lstm2(out)
+            last = out[:, -1, :]          # Take last timestep
+            out = self.relu(self.fc1(last))
+            out = self.dropout(out)
+            out = self.sigmoid(self.fc2(out))
+            return out                    # Shape: [B, 1]
+else:
+    class ScalpingLSTM:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
 
 
 class LSTMPredictor:
     def __init__(self):
         self.model: ScalpingLSTM | None = None
-        self._load()
+        if TORCH_AVAILABLE:
+            self._load()
+        else:
+            logger.warning("Torch not available — LSTM model disabled, using XGBoost only")
 
     def _load(self) -> None:
+        if not TORCH_AVAILABLE:
+            return
         if MODEL_PATH.exists():
             try:
                 self.model = ScalpingLSTM()
-                self.model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+                self.model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))  # type: ignore
                 self.model.eval()
                 logger.info("LSTM model loaded from disk")
             except Exception as e:
@@ -67,7 +84,7 @@ class LSTMPredictor:
         feature_matrix: shape [seq_len, n_features] — last 60 candles
         Returns probability 0.0–1.0 that next 3–5 candles go up.
         """
-        if self.model is None:
+        if self.model is None or not TORCH_AVAILABLE:
             return 0.5  # Neutral if no model loaded
 
         if len(feature_matrix) < SEQ_LEN:
@@ -78,13 +95,16 @@ class LSTMPredictor:
             logger.warning(f"Feature dimension mismatch: expected {N_FEATURES}, got {seq.shape[1]}. Returning neutral.")
             return 0.5
 
-        x = torch.FloatTensor(seq).unsqueeze(0)  # [1, 60, F]
-        with torch.no_grad():
+        x = torch.FloatTensor(seq).unsqueeze(0)  # [1, 60, F]  # type: ignore
+        with torch.no_grad():  # type: ignore
             prob = self.model(x).item()
         return float(prob)
 
     def save(self, model: ScalpingLSTM) -> None:
-        torch.save(model.state_dict(), MODEL_PATH)
+        if not TORCH_AVAILABLE:
+            logger.warning("Torch not available — cannot save LSTM model")
+            return
+        torch.save(model.state_dict(), MODEL_PATH)  # type: ignore
         self.model = model
         self.model.eval()
         logger.info("LSTM model saved")
