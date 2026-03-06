@@ -97,9 +97,13 @@ async def scan_symbol(symbol: str, redis: aioredis.Redis) -> None:
         logger.info(f"Signal pushed to Redis queue: {signal.direction} {symbol}")
 
     except Exception as e:
-        logger.error(f"Error scanning {symbol}: {e}")
         import traceback
-        logger.error(traceback.format_exc())
+        tb_str = traceback.format_exc()
+        logger.error(f"Error scanning {symbol}: {e}")
+        logger.error("TRACEBACK:")
+        for line in tb_str.split('\n'):
+            if line.strip():
+                logger.error(line)
 
 
 async def run_scan() -> None:

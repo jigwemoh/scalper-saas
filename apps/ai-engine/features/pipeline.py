@@ -58,14 +58,61 @@ def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    df = add_trend_features(df)
-    df = add_momentum_features(df)
-    df = add_volatility_features(df)
-    df = add_volume_features(df)
-    df = add_price_action_features(df)
-    df = add_vwap_features(df)
-    df = add_session_features(df)
-    df = add_volume_spike_features(df)
+    try:
+        df = add_trend_features(df)
+        logger.debug("✓ Trend features added")
+    except Exception as e:
+        logger.error(f"Error in add_trend_features: {e}")
+        raise
+
+    try:
+        df = add_momentum_features(df)
+        logger.debug("✓ Momentum features added")
+    except Exception as e:
+        logger.error(f"Error in add_momentum_features: {e}")
+        raise
+
+    try:
+        df = add_volatility_features(df)
+        logger.debug("✓ Volatility features added")
+    except Exception as e:
+        logger.error(f"Error in add_volatility_features: {e}")
+        raise
+
+    try:
+        df = add_volume_features(df)
+        logger.debug("✓ Volume features added")
+    except Exception as e:
+        logger.error(f"Error in add_volume_features: {e}")
+        raise
+
+    try:
+        df = add_price_action_features(df)
+        logger.debug("✓ Price action features added")
+    except Exception as e:
+        logger.error(f"Error in add_price_action_features: {e}")
+        raise
+
+    try:
+        df = add_vwap_features(df)
+        logger.debug("✓ VWAP features added")
+    except Exception as e:
+        logger.error(f"Error in add_vwap_features: {e}")
+        raise
+
+    try:
+        df = add_session_features(df)
+        logger.debug("✓ Session features added")
+    except Exception as e:
+        logger.error(f"Error in add_session_features: {e}")
+        raise
+
+    try:
+        df = add_volume_spike_features(df)
+        logger.debug("✓ Volume spike features added")
+    except Exception as e:
+        logger.error(f"Error in add_volume_spike_features: {e}")
+        raise
 
     # Convert spread from MT5 points (1 point = 0.1 pip for 5-digit brokers) to pips
     if "spread" in df.columns:
