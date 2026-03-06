@@ -20,7 +20,7 @@ logger = logging.getLogger("signal_generator")
 
 # Tunable thresholds
 MIN_AI_CONFIDENCE = 0.68
-MAX_SPREAD_PIPS = 3.0
+MAX_SPREAD_PIPS = 30.0  # Temporarily increased to test with high-spread symbols
 MIN_ATR_MULTIPLE = 0.8   # ATR must be >= 80% of session average
 
 # TP:SL ratio
