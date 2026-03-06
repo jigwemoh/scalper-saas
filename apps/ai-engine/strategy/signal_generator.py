@@ -104,18 +104,40 @@ def evaluate_setup(
         return None
 
     # Build feature matrix
-    features = build_feature_matrix(df_m1)
-    if features.empty or len(features) < 60:
+    try:
+        features = build_feature_matrix(df_m1)
+        if features.empty or len(features) < 60:
+            return None
+
+        latest = features.iloc[-1]
+
+        # Debug: check for DataFrame values
+        for col in FEATURE_COLUMNS:
+            val = latest.get(col)
+            if isinstance(val, pd.DataFrame):
+                logger.error(f"Feature {col} is a DataFrame, not a scalar!")
+                return None
+    except Exception as e:
+        logger.error(f"Error building features: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
-    latest = features.iloc[-1]
-
     # === RULE FILTER 3: EMA alignment ===
-    ema20 = latest.get("ema20", 0)
-    ema50 = latest.get("ema50", 0)
+    try:
+        ema20 = float(latest.get("ema20", 0))
+        ema50 = float(latest.get("ema50", 0))
+    except (TypeError, ValueError) as e:
+        logger.error(f"Error converting EMA values: {e}. ema20={latest.get('ema20')}, ema50={latest.get('ema50')}")
+        return None
+
     close = float(last["close"])
     # Use above_vwap flag from feature matrix (vwap itself is not in FEATURE_COLUMNS)
-    above_vwap = bool(latest.get("above_vwap", 0))
+    try:
+        above_vwap = bool(int(latest.get("above_vwap", 0)))
+    except (TypeError, ValueError) as e:
+        logger.error(f"Error converting above_vwap: {e}. above_vwap={latest.get('above_vwap')}")
+        return None
 
     ema_bull = ema20 > ema50
     ema_bear = ema20 < ema50
