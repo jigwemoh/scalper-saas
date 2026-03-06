@@ -59,8 +59,11 @@ async def scan_symbol(symbol: str, redis: aioredis.Redis) -> None:
         if df_m1 is None or df_m1.empty:
             return
 
+        # Use .empty check instead of 'or' to avoid DataFrame ambiguity error
+        df_m5_safe = df_m5 if (df_m5 is not None and not df_m5.empty) else df_m1
+
         predictor = get_predictor()
-        signal = evaluate_setup(df_m1, df_m5 or df_m1, symbol, predictor)
+        signal = evaluate_setup(df_m1, df_m5_safe, symbol, predictor)
 
         if signal is None:
             return
