@@ -34,24 +34,34 @@ def add_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
     macd_diff_result = ta.trend.macd_diff(df["close"], window_slow=26, window_fast=12, window_sign=9)
     df["macd_hist"] = macd_diff_result.iloc[:, 0] if isinstance(macd_diff_result, pd.DataFrame) else macd_diff_result
 
-    df["stoch_k"] = ta.momentum.stoch(df["high"], df["low"], df["close"], window=14, smooth_window=3)
-    df["stoch_d"] = ta.momentum.stoch_signal(df["high"], df["low"], df["close"], window=14, smooth_window=3)
+    stoch_k_result = ta.momentum.stoch(df["high"], df["low"], df["close"], window=14, smooth_window=3)
+    df["stoch_k"] = stoch_k_result.iloc[:, 0] if isinstance(stoch_k_result, pd.DataFrame) else stoch_k_result
+    stoch_d_result = ta.momentum.stoch_signal(df["high"], df["low"], df["close"], window=14, smooth_window=3)
+    df["stoch_d"] = stoch_d_result.iloc[:, 0] if isinstance(stoch_d_result, pd.DataFrame) else stoch_d_result
 
-    df["cci14"] = ta.trend.cci(df["high"], df["low"], df["close"], window=14)
+    cci_result = ta.trend.cci(df["high"], df["low"], df["close"], window=14)
+    df["cci14"] = cci_result.iloc[:, 0] if isinstance(cci_result, pd.DataFrame) else cci_result
     df["mom10"] = ta.momentum.roc(df["close"], window=10)
     return df
 
 
 def add_volatility_features(df: pd.DataFrame) -> pd.DataFrame:
-    df["atr14"] = ta.volatility.average_true_range(df["high"], df["low"], df["close"], window=14)
-    df["atr20"] = ta.volatility.average_true_range(df["high"], df["low"], df["close"], window=20)
+    atr14_result = ta.volatility.average_true_range(df["high"], df["low"], df["close"], window=14)
+    df["atr14"] = atr14_result.iloc[:, 0] if isinstance(atr14_result, pd.DataFrame) else atr14_result
+    atr20_result = ta.volatility.average_true_range(df["high"], df["low"], df["close"], window=20)
+    df["atr20"] = atr20_result.iloc[:, 0] if isinstance(atr20_result, pd.DataFrame) else atr20_result
     df["std20"] = df["close"].rolling(20).std()
 
-    df["bb_upper"] = ta.volatility.bollinger_hband(df["close"], window=20, window_dev=2)
-    df["bb_lower"] = ta.volatility.bollinger_lband(df["close"], window=20, window_dev=2)
-    df["bb_mid"] = ta.volatility.bollinger_mavg(df["close"], window=20)
-    df["bb_width"] = ta.volatility.bollinger_wband(df["close"], window=20, window_dev=2)
-    df["bb_pct"] = ta.volatility.bollinger_pband(df["close"], window=20, window_dev=2)
+    bb_upper_result = ta.volatility.bollinger_hband(df["close"], window=20, window_dev=2)
+    df["bb_upper"] = bb_upper_result.iloc[:, 0] if isinstance(bb_upper_result, pd.DataFrame) else bb_upper_result
+    bb_lower_result = ta.volatility.bollinger_lband(df["close"], window=20, window_dev=2)
+    df["bb_lower"] = bb_lower_result.iloc[:, 0] if isinstance(bb_lower_result, pd.DataFrame) else bb_lower_result
+    bb_mid_result = ta.volatility.bollinger_mavg(df["close"], window=20)
+    df["bb_mid"] = bb_mid_result.iloc[:, 0] if isinstance(bb_mid_result, pd.DataFrame) else bb_mid_result
+    bb_width_result = ta.volatility.bollinger_wband(df["close"], window=20, window_dev=2)
+    df["bb_width"] = bb_width_result.iloc[:, 0] if isinstance(bb_width_result, pd.DataFrame) else bb_width_result
+    bb_pct_result = ta.volatility.bollinger_pband(df["close"], window=20, window_dev=2)
+    df["bb_pct"] = bb_pct_result.iloc[:, 0] if isinstance(bb_pct_result, pd.DataFrame) else bb_pct_result
 
     # Normalized ATR (ATR as % of price)
     df["atr_pct"] = df["atr14"] / df["close"]
