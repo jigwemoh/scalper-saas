@@ -98,6 +98,8 @@ async def scan_symbol(symbol: str, redis: aioredis.Redis) -> None:
 
     except Exception as e:
         logger.error(f"Error scanning {symbol}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 async def run_scan() -> None:
