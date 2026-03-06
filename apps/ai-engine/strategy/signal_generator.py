@@ -93,6 +93,7 @@ def evaluate_setup(
     # === RULE FILTER 1: Session ===
     session = get_session(hour)
     if session == "off_hours":
+        logger.debug(f"{symbol}: Filtered - off_hours")
         return None
 
     # === RULE FILTER 2: Spread ===
@@ -100,7 +101,7 @@ def evaluate_setup(
     spread_points = float(last.get("spread", 0))
     spread_pips = spread_points / 10.0
     if spread_pips > MAX_SPREAD_PIPS:
-        logger.debug(f"{symbol}: spread {spread_pips} > {MAX_SPREAD_PIPS}")
+        logger.info(f"{symbol}: Filtered - spread {spread_pips:.2f} > {MAX_SPREAD_PIPS}")
         return None
 
     # Build feature matrix
@@ -155,7 +156,7 @@ def evaluate_setup(
     # === RULE FILTER 6: Regime ===
     regime = classify_regime(features)
     if not is_tradeable_regime(regime):
-        logger.debug(f"{symbol}: regime {regime} not tradeable")
+        logger.info(f"{symbol}: Filtered - regime {regime} not tradeable")
         return None
 
     # Determine candidate direction
@@ -166,9 +167,11 @@ def evaluate_setup(
         candidate = "SELL"
         liquidity_sweep = detect_bearish_sweep(df_m1)
     else:
+        logger.debug(f"{symbol}: Filtered - no direction candidate (ema_bull={ema_bull}, above_vwap={above_vwap}, rsi_bull_zone={rsi_bull_zone}, ema_bear={ema_bear}, rsi_bear_zone={rsi_bear_zone})")
         return None
 
     if not atr_ok:
+        logger.info(f"{symbol}: Filtered - ATR {atr:.6f} < {atr_avg * MIN_ATR_MULTIPLE:.6f}")
         return None
 
     # === AI GATE: Ensemble prediction ===
@@ -178,10 +181,13 @@ def evaluate_setup(
     prediction = predictor.predict(feature_row, feature_matrix)
 
     if prediction["direction"] == "HOLD":
+        logger.debug(f"{symbol}: Filtered - AI predicts HOLD")
         return None
     if prediction["direction"] != candidate:
+        logger.debug(f"{symbol}: Filtered - AI disagrees ({prediction['direction']} vs {candidate})")
         return None  # AI disagrees with rule filter
     if prediction["probability"] < MIN_AI_CONFIDENCE:
+        logger.info(f"{symbol}: Filtered - AI confidence {prediction['probability']:.3f} < {MIN_AI_CONFIDENCE}")
         return None
 
     # Liquidity sweep bonus: lower threshold slightly
