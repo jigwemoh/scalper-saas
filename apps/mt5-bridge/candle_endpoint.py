@@ -64,8 +64,8 @@ def get_candles(
             "low": float(r["low"]),
             "close": float(r["close"]),
             "tick_volume": int(r["tick_volume"]),
-            "real_volume": int(r.get("real_volume", 0)),
-            "spread": int(r.get("spread", 0)),
+            "real_volume": int(r["real_volume"]) if "real_volume" in r.dtype.names else 0,
+            "spread": int(r["spread"]) if "spread" in r.dtype.names else 0,
         }
         for r in rates
     ]
