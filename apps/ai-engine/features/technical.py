@@ -81,7 +81,8 @@ def add_volume_features(df: pd.DataFrame) -> pd.DataFrame:
     df["vol_sma20"] = df["volume"].rolling(20).mean()
     df["vol_ratio"] = df["volume"] / df["vol_sma20"].replace(0, 1)
 
-    df["obv"] = ta.volume.on_balance_volume(df["close"], df["volume"])
+    obv_result = ta.volume.on_balance_volume(df["close"], df["volume"])
+    df["obv"] = obv_result.iloc[:, 0] if isinstance(obv_result, pd.DataFrame) else obv_result
     df["obv_sma10"] = df["obv"].rolling(10).mean()
     return df
 
