@@ -109,11 +109,13 @@ async def retrain_models(predictor: EnsemblePredictor | None = None) -> None:
 
 
 async def start_retrain_loop(predictor: EnsemblePredictor | None = None) -> None:
-    """Run retraining once weekly (every 7 days)."""
+    """Run retraining once weekly (every 7 days). First run immediately."""
     WEEK_SECONDS = 7 * 24 * 3600
-    logger.info("Retraining loop started — first run in 24h")
-    await asyncio.sleep(24 * 3600)  # Wait 24h before first retrain
+    logger.info("Retraining loop started — running initial training now")
+
+    # Train immediately on startup
+    await retrain_models(predictor)
 
     while True:
-        await retrain_models(predictor)
         await asyncio.sleep(WEEK_SECONDS)
+        await retrain_models(predictor)
