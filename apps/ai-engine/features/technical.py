@@ -27,9 +27,12 @@ def add_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
     df["rsi7"] = ta.momentum.rsi(df["close"], window=7)
     df["rsi14"] = ta.momentum.rsi(df["close"], window=14)
 
-    df["macd"] = ta.trend.macd(df["close"], window_slow=26, window_fast=12)
-    df["macd_signal"] = ta.trend.macd_signal(df["close"], window_slow=26, window_fast=12, window_sign=9)
-    df["macd_hist"] = ta.trend.macd_diff(df["close"], window_slow=26, window_fast=12, window_sign=9)
+    macd_result = ta.trend.macd(df["close"], window_slow=26, window_fast=12)
+    df["macd"] = macd_result.iloc[:, 0] if isinstance(macd_result, pd.DataFrame) else macd_result
+    macd_signal_result = ta.trend.macd_signal(df["close"], window_slow=26, window_fast=12, window_sign=9)
+    df["macd_signal"] = macd_signal_result.iloc[:, 0] if isinstance(macd_signal_result, pd.DataFrame) else macd_signal_result
+    macd_diff_result = ta.trend.macd_diff(df["close"], window_slow=26, window_fast=12, window_sign=9)
+    df["macd_hist"] = macd_diff_result.iloc[:, 0] if isinstance(macd_diff_result, pd.DataFrame) else macd_diff_result
 
     df["stoch_k"] = ta.momentum.stoch(df["high"], df["low"], df["close"], window=14, smooth_window=3)
     df["stoch_d"] = ta.momentum.stoch_signal(df["high"], df["low"], df["close"], window=14, smooth_window=3)
