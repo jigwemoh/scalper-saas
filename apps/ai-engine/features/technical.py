@@ -41,7 +41,8 @@ def add_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
 
     cci_result = ta.trend.cci(df["high"], df["low"], df["close"], window=14)
     df["cci14"] = cci_result.iloc[:, 0] if isinstance(cci_result, pd.DataFrame) else cci_result
-    df["mom10"] = ta.momentum.roc(df["close"], window=10)
+    mom10_result = ta.momentum.roc(df["close"], window=10)
+    df["mom10"] = mom10_result.iloc[:, 0] if isinstance(mom10_result, pd.DataFrame) else mom10_result
     return df
 
 
