@@ -47,7 +47,8 @@ async def retrain_models(predictor: EnsemblePredictor | None = None) -> None:
         try:
             logger.info(f"Fetching training data for {symbol}...")
             # Use M1 data for training to match inference timeframe
-            df = await fetch_candles(symbol, "M1", count=2000)
+            # MT5 bridge has limits; use 500 candles (~8 hours of M1 data) for training
+            df = await fetch_candles(symbol, "M1", count=500)
 
             if df.empty or len(df) < 100:
                 logger.warning(f"Insufficient data for {symbol}")
