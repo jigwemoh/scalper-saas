@@ -63,9 +63,9 @@ async def retrain_models(predictor: EnsemblePredictor | None = None) -> None:
             labels = labels[:min_len]
 
             # Remove rows where labels are NaN (last LABEL_LOOKAHEAD rows)
-            valid_mask = ~pd.isna(pd.Series(labels))
+            valid_mask = ~pd.isna(pd.Series(labels)).values
             features = features[valid_mask]
-            labels = labels[valid_mask.values]
+            labels = labels[valid_mask]
 
             # XGBoost: flat feature matrix
             xgb_X = features[FEATURE_COLUMNS].values.astype(np.float32)
